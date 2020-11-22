@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from collections import Counter
 
 
 #read csv
@@ -58,6 +59,8 @@ print(max(command_totals),min(command_totals))
 epsilon = 5
 
 #print(sum(command_totals)/len(command_totals))
+
+#some laplace noise 
 noisy= []
 location=0
 scale=(1/epsilon)*((sum(command_totals)/len(command_totals))-((sum(command_totals)-max(command_totals))/(len(command_totals)-1)))
@@ -66,3 +69,80 @@ for i in range (1000):
     noisy.append(sum(command_totals)/len(command_totals)+Laplacian_noise)
 
 print("variance : ",np.var(noisy))
+
+#give, for each item, the item msot likely to be bought with, with Exponential mechanism
+commands_items=[]
+#create list for each command, only with the items bought
+for i in commands:
+    commands_items.append([x[2]for x in i])
+
+list1=[]
+for x in commands_items:
+    for i in x:
+        list1.append(i)
+
+#this one stores all the different items (no duplicate) that have been sold
+all_items=list(set(list1))
+#print(len(all_items))
+
+all_items.sort()
+
+#lists of items that are bought along with each item
+#link is made via index
+relatives=[[] for i in range(len(all_items))]
+for x in range(len(all_items)):
+    for y in commands_items:
+        if (all_items[x] in y):
+            for a in y:
+                if a !=all_items[x]:
+                    relatives[x].append(a)
+
+
+#remove items that are bought alone
+to_be_removed=[]
+count_rem=0
+for x in range(len(relatives)):
+    if relatives[x]==[]:
+        to_be_removed.append(x-count_rem)
+        count_rem+=1
+
+for i in to_be_removed:
+    del(all_items[i])
+relatives=[x for x in relatives if not x==[]]
+
+
+
+#df = pd.DataFrame(commands_items)
+#print(commands_items[0])
+print(relatives[0])
+print(all_items[0])
+
+
+#counters of occurences of each item per "bought-along " list
+counters=[Counter(i).most_common() for i in relatives]
+
+
+#transform tuples returned by most common into lists
+for i in range(len(counters)):
+    for j in range(len(counters[i])):
+        counters[i][j]=list(counters[i][j])
+
+print(counters[-1])
+
+#exponential mechanism
+for x in range(len(counters)):
+    sigma=0
+    for y in range(len(counters[x])):
+        counters[x][y].append(np.exp(epsilon*counters[x][y][1]/2))
+    for y in range(len(counters[x])):
+        sigma+=counters[x][y][-1]
+    alpha = 1/sigma
+    for y in range(len(counters[x])):
+        counters[x][y][-1]*=alpha
+
+
+choices=[]
+for i in range (len(all_items)):
+    choices.append([all_items[i],[x[0]for x in counters[i]],[x[2]for x in counters[i]]])
+
+print(choices[-1])
