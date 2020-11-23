@@ -1,6 +1,9 @@
 import pandas as pd
 import numpy as np
 from collections import Counter
+from mlxtend.preprocessing import TransactionEncoder
+from mlxtend.frequent_patterns import apriori, fpmax, fpgrowth,association_rules
+import matplotlib.pyplot as plt
 
 
 #read csv
@@ -114,8 +117,8 @@ relatives=[x for x in relatives if not x==[]]
 
 #df = pd.DataFrame(commands_items)
 #print(commands_items[0])
-print(relatives[0])
-print(all_items[0])
+#print(relatives[0])
+#print(all_items[0])
 
 
 #counters of occurences of each item per "bought-along " list
@@ -126,8 +129,9 @@ counters=[Counter(i).most_common() for i in relatives]
 for i in range(len(counters)):
     for j in range(len(counters[i])):
         counters[i][j]=list(counters[i][j])
+        counters[i][j][1]/=50
 
-print(counters[-1])
+#print(counters[-1])
 
 #exponential mechanism
 for x in range(len(counters)):
@@ -145,4 +149,21 @@ choices=[]
 for i in range (len(all_items)):
     choices.append([all_items[i],[x[0]for x in counters[i]],[x[2]for x in counters[i]]])
 
-print(choices[-1])
+#print(choices[-1])
+
+choice_for_each_item=[]
+for i in range(len(choices)):
+    choice_for_each_item.append([choices[i][0],np.random.choice(choices[i][1],1,p=choices[i][2])])
+
+print(len(choice_for_each_item))
+print(choice_for_each_item[-1])
+
+dataset = pd.DataFrame(commands_items)
+print(dataset)
+te = TransactionEncoder()
+te_ary = te.fit(dataset).transform(dataset)
+#df = pd.DataFrame(te_ary, columns=te.columns_)
+
+
+#frequent_itemsets = fpgrowth(dataset, min_support=0.6, use_colnames=True)
+#association_rules(frequent_itemsets, metric="confidence", min_threshold=0.7)
