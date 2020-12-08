@@ -1,18 +1,12 @@
 import pandas as pd
 import numpy as np
 from collections import Counter
-from mlxtend.preprocessing import TransactionEncoder
-from mlxtend.frequent_patterns import apriori, fpmax, fpgrowth,association_rules
-import matplotlib.pyplot as plt
 from copy import deepcopy
 
+# please not that code execution is very long (~10 mins maybe ?)because of one step in particular. This is explained later at said step, but an apology is mandatory here.
+# So, sorry!
 
-#read csv
-dataset = pd.read_csv("Online Retail.csv",sep=',',dtype={"voiceNo":int,"StockCode":str, "Description":str, "Quantity":int, "InvoiceDate":str, "UnitPrice":float,
-"CustomerID":float, "Country": str})
 
-#filling empty slots with zeroes (most likely doesnt work)
-dataset.fillna('0')
 
 
 
@@ -77,7 +71,7 @@ for i in range (1000):
     noisy.append(sum(command_totals)/len(command_totals)+Laplacian_noise)
 
 print("variance : ",np.var(noisy))
-with open('output.csv',"w") as output:
+with open('output_laplace.csv',"w") as output:
     for i in noisy:
         output.write(str(i))
         output.write("\n")
@@ -186,7 +180,7 @@ with open('output_expo.csv',"w") as output:
 # calculate support of item i: # of occurences of item i / #total of items
 # add Laplace noise to this support
 #for the sensitivity, adding an extra item can either increase both # of occurences of items i and #total of items, or just #total of items if it is not i. 
-#We can deduce that the highest impact is when it increases both # of occurences of items i and #total of items. Then the difference is 1/#total of items which is in our code also len(commands)
+#We can deduce that the highest impact is when it increases both # of occurences of items i and #total of items. Then the difference is 1/#total of items which is in our code also 1/len(commands)
 epsilon2=10
 
 supports=Counter(list1).most_common()
