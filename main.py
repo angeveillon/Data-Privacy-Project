@@ -4,6 +4,7 @@ from collections import Counter
 from mlxtend.preprocessing import TransactionEncoder
 from mlxtend.frequent_patterns import apriori, fpmax, fpgrowth,association_rules
 import matplotlib.pyplot as plt
+from copy import deepcopy
 
 
 #read csv
@@ -13,7 +14,7 @@ dataset = pd.read_csv("Online Retail.csv",sep=',',dtype={"voiceNo":int,"StockCod
 #filling empty slots with zeroes (most likely doesnt work)
 dataset.fillna('0')
 
-#feel free to use the dataset with pandas if you are more comfortable with it / think it's better for the project. I can learn and switch to it.
+
 
 dataprov=[]
 command_totals=[]
@@ -29,7 +30,7 @@ with open('Online Retail.csv',"r") as source:
       if len(currentrow)==8:
         dataprov.append(currentrow)
 
-print('oui',len(dataprov))
+
 #remove first row ( names of columns )
 dataprov=dataprov[1:]
 data=[]
@@ -39,6 +40,8 @@ for i in dataprov:
     if (float(i[3])>0.0) & (float(i[5])>0.0):
         data.append(i)
 
+
+# query : give the average invoice price made on the website.
 
 commands=[[data[0]]]
 
@@ -56,24 +59,31 @@ for x in commands:
     command_totals.append(sum([float(i[5])*float(i[3])for i in x]))
     #command_totals.append(sum([float(i[5]) for i in x]))
 
-print(max(command_totals),min(command_totals))
+
 
 #EPSILON
 epsilon = 5
 
-#print(sum(command_totals)/len(command_totals))
+
 
 #some laplace noise 
 noisy= []
 location=0
 scale=(1/epsilon)*((sum(command_totals)/len(command_totals))-((sum(command_totals)-max(command_totals))/(len(command_totals)-1)))
+
+# we give 1000 results of the average with Laplace noise added
 for i in range (1000):
     Laplacian_noise = np.random.laplace(location,scale)
     noisy.append(sum(command_totals)/len(command_totals)+Laplacian_noise)
 
 print("variance : ",np.var(noisy))
+with open('output.csv',"w") as output:
+    for i in noisy:
+        output.write(str(i))
+        output.write("\n")
+    output.close()
 
-#give, for each item, the item msot likely to be bought with, with Exponential mechanism
+#give, for each item, the item most likely to be bought with, with Exponential mechanism
 commands_items=[]
 #create list for each command, only with the items bought
 for i in commands:
@@ -86,7 +96,7 @@ for x in commands_items:
 
 #this one stores all the different items (no duplicate) that have been sold
 all_items=list(set(list1))
-#print(len(all_items))
+print(len(all_items))
 
 all_items.sort()
 
@@ -115,10 +125,7 @@ relatives=[x for x in relatives if not x==[]]
 
 
 
-#df = pd.DataFrame(commands_items)
-#print(commands_items[0])
-#print(relatives[0])
-#print(all_items[0])
+
 
 
 #counters of occurences of each item per "bought-along " list
@@ -131,7 +138,14 @@ for i in range(len(counters)):
         counters[i][j]=list(counters[i][j])
         counters[i][j][1]/=50
 
-#print(counters[-1])
+# for association rule
+counters2= deepcopy(counters)
+for i in range(len(counters2)):
+    sommation =sum([k[1]for k in counters2[i]])
+    for j in range(len(counters2[i])):
+        counters2[i][j][1]*=50
+        counters2[i][j][1]/=sommation
+
 
 #exponential mechanism
 for x in range(len(counters)):
@@ -140,6 +154,7 @@ for x in range(len(counters)):
         counters[x][y].append(np.exp(epsilon*counters[x][y][1]/2))
     for y in range(len(counters[x])):
         sigma+=counters[x][y][-1]
+    # ponderation to get sum(probabilities)=1
     alpha = 1/sigma
     for y in range(len(counters[x])):
         counters[x][y][-1]*=alpha
@@ -149,21 +164,135 @@ choices=[]
 for i in range (len(all_items)):
     choices.append([all_items[i],[x[0]for x in counters[i]],[x[2]for x in counters[i]]])
 
-#print(choices[-1])
+#generate a choice for each vialid item
 
 choice_for_each_item=[]
 for i in range(len(choices)):
     choice_for_each_item.append([choices[i][0],np.random.choice(choices[i][1],1,p=choices[i][2])])
 
-print(len(choice_for_each_item))
-print(choice_for_each_item[-1])
-
-dataset = pd.DataFrame(commands_items)
-print(dataset)
-te = TransactionEncoder()
-te_ary = te.fit(dataset).transform(dataset)
-#df = pd.DataFrame(te_ary, columns=te.columns_)
 
 
-#frequent_itemsets = fpgrowth(dataset, min_support=0.6, use_colnames=True)
-#association_rules(frequent_itemsets, metric="confidence", min_threshold=0.7)
+with open('output_expo.csv',"w") as output:
+    for i in choice_for_each_item:
+        output.write(str(i))
+        output.write("\n")
+    output.close()
+
+
+ 
+# association rule:
+
+#create a list filled with [item i, # of occurences of item i]
+# calculate support of item i: # of occurences of item i / #total of items
+# add Laplace noise to this support
+#for the sensitivity, adding an extra item can either increase both # of occurences of items i and #total of items, or just #total of items if it is not i. 
+#We can deduce that the highest impact is when it increases both # of occurences of items i and #total of items. Then the difference is 1/#total of items which is in our code also len(commands)
+epsilon2=10
+
+supports=Counter(list1).most_common()
+
+
+for i in range(len(supports)):
+    Laplacian_noise_1 = np.random.laplace(0,8/(epsilon2*len(commands)))
+    supports[i]=list(supports[i])
+    a=round((supports[i][1]/len(commands))+Laplacian_noise_1,5)
+    if a>0:
+        supports[i][1]=a
+    else:
+        supports[i][1]=0.0
+supports.sort( key = lambda x: x[0])
+
+
+
+
+# calculate support of item i bought along with item j : # of occurences of items i and j / #total of items
+#for the sensitivity, adding an extra item can either increase both # of occurences of items i and j and #total of items, or just #total of items if it is neither i nor j
+#we add Laplace noise here
+#please note that the time complexity of this step is, if not horrible, huge. This one actually takes several minutes because we keep checking back supports to get the correct object.
+# So complexity explodes(count reaches ~7,000,000 and is used here to indicate you that code does not crash). Sorry for that...
+supp_combs=[]
+count=0
+for i in range(len(counters2)):
+    for j in range(len(counters2[i])):
+        Laplacian_noise_2 = np.random.laplace(0,8/(epsilon2*len(commands)))
+        b=round((counters2[i][j][1]*supports[i][1])+Laplacian_noise_2,5)
+        #if b>0.5:
+        for k in supports:
+            if counters2[i][j][0]==k[0]:
+                count+=1
+                if count%100000==0:
+                    print(count)
+                support2=k[1]
+                break
+        if b>1:
+            b=1
+        if b>0:
+            supp_combs.append([all_items[i],counters2[i][j][0],b,supports[i][1],support2])
+        else:
+            supp_combs.append([all_items[i],counters2[i][j][0],0,supports[i][1],support2])
+
+
+
+
+
+#confidence(i,j) = support ( i,j)/support (i)
+#we add Laplace noise here
+
+confidences=[]
+for i in supp_combs:
+    Laplacian_noise_3 = np.random.laplace(0,4/(3*epsilon2*len(commands)))
+    if i[3]!=0:
+        confidences.append([i[0],i[1],round(i[2]/i[3]+Laplacian_noise_3,5)])
+    else:
+        confidences.append([i[0],i[1],round(Laplacian_noise_3/2,5)])
+
+#print(confidences[0])
+
+# lift(i,j) = confidence(i,j)/support(j)=support ( i,j)/(support (i)*support(j))
+#we add Laplace noise here
+lifts=[]
+for i in supp_combs:
+    Laplacian_noise_3 = np.random.laplace(0,8/(5*epsilon2*len(commands)))
+    if (i[3]*i[4])!=0:
+        lifts.append([i[0],i[1],round(i[2]/(i[3]*i[4])+Laplacian_noise_3,5)])
+    else:
+        lifts.append([i[0],i[1],round(Laplacian_noise_3/2,5)])
+#print(lifts[0])
+
+# leverage(i,j) = support (i,j)-(support(i)*support(j))
+#we add Laplace noise here
+leverages=[]
+for i in supp_combs:
+    Laplacian_noise_3 = np.random.laplace(0,5/(5*epsilon2*len(commands)))
+    leverages.append([i[0],i[1],round(i[2]-(i[3]*i[4])+Laplacian_noise_3,5)])
+
+#print(leverages[0])
+
+# conviction(i,j) = (1- support(j))/(1- confidence(i,j))
+#we add Laplace noise here
+convictions=[]
+for i in supp_combs:
+    Laplacian_noise_3 = np.random.laplace(0,4/(3*epsilon2*len(commands)))
+    if i[2]!=1.0:
+        convictions.append([i[0],i[1],round((1-i[4])/(1.0-i[2])+Laplacian_noise_3,5)])
+    else:
+        convictions.append([i[0],i[1],"inf"])
+#print(convictions[0])
+
+
+#create suggestions by returning the pair ith the highest confidence for each item
+max_confidences = [[confidences[0]]]
+for i in range(1, len(confidences)):
+    if confidences[i][0]==max_confidences[-1][0][0]:
+        max_confidences[-1].append(confidences[i])
+    else:
+        max_confidences.append([confidences[i]])
+suggest_conf=[]
+for i in max_confidences:
+    suggest_conf.append(max(i,  key=lambda x:x[2]))
+
+with open('output_confidence.csv',"w") as output:
+    for i in suggest_conf:
+        output.write(str(i))
+        output.write("\n")
+    output.close()
